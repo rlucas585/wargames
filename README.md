@@ -617,10 +617,264 @@ file should contain the password for bandit24.
 
 > Password for bandit24: UoMYTrfrBFHyQXmg6gzctqAwOmw1IohZ
 
-### Bandit
+### Bandit24
 
-Text
+A new `nc` exercise: a brute force exercise. We are informed a daemon (a
+constantly running service) is listening on port 30002 for the password to
+bandit24 followed by a 4-digit pincode. `nc`ing constantly into the port
+is not an option, what we'd like to do is connect to the daemon and enter
+attempt after attempt until we get a correct response.
 
-> Password for bandit: 
+First, we need to create a file of all our attempt values, a single line command
+can do this for us from the shell:
+
+```
+for i in {0..9999}; do (printf "bandit24pass %04d\n" $i) >> pincodes.txt ; done
+```
+
+Now that we have a file with everything we want to attempt, we can read it
+into our `nc` command with `cat` and a redirection.
+
+```
+cat pincodes.txt | nc localhost 30002
+```
+
+We should see a huge number of incorrect responses, terminated with the one
+correct submission, and the password for bandit25.
+
+> Password for bandit25: uNG9O58gUE7snukf3bvZ0rxhtnjzSGzG
+
+### Bandit25
+
+The bandit25 home directory immediately hands us a key to log into bandit26.
+Unfortunately, using the sshkey as we did in bandit13 is not the entire
+solution, as we are immediately disconnected from the server.
+
+We're informed that bandit26 is running on a different shell. To find out what
+it is, we open /etc/passwd. This file shows all the users (and daemons) on the
+server, and some information about; namely, the shell that they run on.
+
+We see that bandit26 runs on /usr/bin/showtext. So we head there to find out
+what is happening.
+
+From showtext, we find that the only action it takes is to read a text file
+from /home/bandit26/text.txt using the `more` command, and then exits
+the connection. `man more` will give us info about this command, in
+particular, the fact that it can open a text editor using `v`.
+
+The only issue is, as soon as `more` finishes reading the text file (which
+is very short), the connection is exited. The solution to this is a little
+outside of the box: to prevent `more` from finishing the read, we resize the
+terminal window to a small enough height, around 5 lines, prior to connecting.
+
+Now, we use the `v` command of `more` to open Vim, the default text editor.
+Vim can open a shell, by using the command `:shell`, but the shell that opens
+will be the /usr/bin/showtext shell again (we can confirm this with
+`:set shell?`). Running `:set shell=/bin/bash` changes Vim's shell to bash.
+Now `:shell` will open a new shell from Vim, in bash, as bandit26, and we're
+able to find the password from /etc/bandit_pass/bandit26.
+
+> Password for bandit26: 5czgV9L3Xx8JPOyRbXh6lQbmIOWvPT6Z
+
+### Bandit26
+
+Now that we're into bandit26, we simply have a repeat of our bandit19 exercise.
+
+Run `./bandit27-do cat /etc/bandit_pass/bandit27` and on to bandit27.
+
+> Password for bandit27: 3ba3118a22e93127a4ed485be72ef5ea
+
+### Bandit27
+
+For the next couple exercises we learn some of the basics of `git`. `git` is a
+"version control system". It saves the history of files and folders into a
+version history, which means you can see what a project looked like at any point
+in its development, including all of its files. It also allows easy submission
+of a project online, making projects easy to share.
+
+We are going to clone an existing repo through SSH protocol. We know what to
+clone, and we've been told that the password for cloning is the same as the
+bandit27 password. So we run (in a temp dir):
+
+```
+git clone ssh://bandit27-git@localhost/home/bandit27-get/repo
+```
+
+We can move into the cloned repo, and we should see a README file containing
+our password.
+
+A couple other things to try:
+
+* git log: Shows the history of the git repo (Only one version for this
+particular repo). It also shows who made each commit (saving a version), and
+when.
+* git status: Show status of the repo (currently up to date with nothing to
+be committed)
+
+> Password for bandit28: 0ef186ac70e04ea33b4c1853d2526fa2
+
+### Bandit28
+
+We begin by cloning another git repo - but this time, when we read the README,
+we see that the password has been removed. A check of the log with `git log`
+shows there have been 2 more commits on top of the repo in the bandit27
+exercise - with the commit beginning **186a103** seeming like the one we'd like
+to see.
+
+The `git checkout` command lets us move to another commit, by using the name of
+the commit we want to see. We only need to include the first characters to
+distinguish it from the other commits.
+
+```
+git checkout 186a10
+```
+
+We are now in the old version of the repo - we can see the README.md file still,
+but when we `cat README.md` this time we see that the password for bandit29 is
+still there! We take it and move on.
+
+> Password for bandit29: bbc96594b4e001778eee9975372716b2
+
+### Bandit29
+
+We begin this exercise like the last, but this time when we read our README.md
+file, the password field informs us that there are no passwords in production.
+
+`git log` shows us a previous commit, but there is nothing in the history
+of production that gives us a password.
+
+Next we try `git branch`, to see if there is perhaps another production branch
+that may contain a password. No luck unfortunately, as there is only the one
+master branch. Git often contains additional remote tracking branches however,
+that are unseen with the standard `git branch` command. `git branch -a`
+however will reveal to us several of these remote tracking branches.
+
+We switch to the /dev branch with `git checkout remotes/origin/dev`, and
+can see an immediate difference: a directory named 'code' in the repo.
+Now, reading our README.md for this branch, we find the bandit30 password.
+
+> Password for bandit30: 5b90576bedb2cc04c86a9e924ce42faf
+
+### Bandit30
+
+Another tricky git exercise. We can try all of our previous `git` commands,
+but none will help this time.
+
+We can also try a new command: `git tag`. By itself, this will show us all tags
+for a git repo. Tags are references that point to specific points in Git
+history. Unlike branches however, tags will have no previous history of commits
+when created - meaning they are generally used for marked version releases (
+eg. v1.0.1).
+
+We find that there is indeed a tag for something called "secret", which makes
+it pretty clear we're on the right path. If we try `git checkout secret`, we
+get an error, telling us that this operation (git checkout) must be run on a 
+work tree.
+
+We need more info on what this tag is, luckily, git has even stronger commands
+at our disposal to give us even more info about the repository.
+`git for-each-ref` will tell us the id, type, and name of every reference in the
+repository. When we run it here, we see that "secret" is not a commit, it is a
+**blob** type - this stands for **B**inary **L**arge **OB**ject. Git blobs are
+the object type that is used to store the contents of each file in a repository.
+
+We need one more command: `git show`. `git show` shows the content of various
+types of object - for blobs, it will simply show the plain contents.
+
+```
+git show secret
+```
+
+Shall give us our answer.
+
+> Password for bandit31: 47e603bb428404d265f59c42920d81e5
+
+### Bandit31
+
+Still one more git challenge. In bandit31 we have a clear instruction to follow
+from the README file: push a file to the remote repository named "key.txt",
+containing the test "May I come in?". There is one obstacle in our way however.
+
+The first step is to create the file, and is the easiest part of the exercise:
+either open up a text editor, or `echo "May I come in?" | cat > key.txt`.
+
+Now, `git status` should show us that there is a new file in our repo that is
+not yet being tracked by git. Strangely, it doesn't note anything new. We move
+on to the second step.
+
+The second step, is to tell git to track the new file with `git add key.txt`,
+and now we see the issue. Our repo has been instructed to ignore all files
+that fit the pattern "\*.txt", where \* is a wildcard for any string. We can
+either force git to track the file with `git add -f key.txt`, or remove the
+\*.txt line in .gitignore.
+
+Now, git status will show our new file key.txt. For the third step, we have to
+create a new git commit containing the new file. This is done with `git commit`.
+Git will then take us to the default editor to enter a message for the commit,
+'nano' is the default editor (after typing the message use <CTRL-X> to quit,
+and "y" when asked to save).
+
+Finally, now that we have our new commit, we run `git push origin master`
+(specifying the remote to push to, and the branch to push), and in the response
+back from the origin repo, we receive the password for bandit32.
+
+> Password for bandit32: 56a9bf19c63d650ce78e6ec0354ee45e
+
+### Bandit32
+
+Git is done, and we move onto another escape challenge (like bandit26) for our
+final exercise! Logging into bandit32, we are introduced to the
+UPPERCASE SHELL. Trying any of the commands we're well used to by now, such
+as `ls` or `cat` will return a response informing us that `LS` and `CAT` are
+not found.
+
+Clearly, the shell is converting all of our lowercase input into uppercase -
+and we are limited to executing commands that are only uppercase. Unfortunately,
+there are no commands that are uppercase to help us - however, uppercase is
+used for variables within the shell, such as the number of colors available in
+the terminal, what sort of terminal is in use, what sort of shell we're using
+etc.
+
+To run these commands, we have to give the variable name to shell, preceded by
+a `$`, such as `$SHELL`. What we'd love to be able to do, is to have an
+environment variable that has the value `/bin/bash`, then we could just run
+`$VARNAME` on that, and we'd be in the bash shell instead of the UPPERCASE
+SHELL.
+
+Luckily for us, most servers will allow us to send an environment variable
+using the option `-o SendEnv=OUR_VAR` (see `man 5 sshconfig` and `man ssh`).
+Most servers require that these variables are prefixed with **LC_** to be
+accepted.
+
+So, all that's necessary is to create an environment variable in our own
+system:
+
+```
+export LC_BANDIT32_SHELL="/bin/bash"
+```
+
+Then, ssh in as bandit32 with the option `SendEnv`:
+
+```
+ssh -o SendEnv=LC_BANDIT32_SHELL bandit32@bandit.labs.overthewire.org
+```
+
+And finally, we just need to read the command from our variable:
+
+```
+$lc_bandit32_shell
+```
+
+And we are into bash! `cat /etc/bandit_pass/bandit33` and we've finished the
+final challenge.
+
+> Password for bandit33: c9c3199ddf4121b10cf581a98d51caee
+
+### Bandit33
+
+Entering the server for the final time as bandit33, we receive a nice message
+in the README congratulating us for completing the game.
+
+For more challenges, we must move on to the next wargame.
 
 [OTW]: https://overthewire.org
