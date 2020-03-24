@@ -1,7 +1,3 @@
 <?php
-function testthings($string) {
-	return $string;
-}
-
-testthings(function test() { echo "hello"; });
+echo '/etc/natas_webpass/natas13';
 ?>
